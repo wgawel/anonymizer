@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Anonymizer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #f3f3f3 0%, #e2e2e2 100%);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .left, .right {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .left {
+            flex: 1;
+            margin-right: 20px;
+        }
+        .right {
+            flex: 1;
+            margin-left: 20px;
+        }
+        textarea, input {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            resize: vertical;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .instructions {
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+        .replacementRow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .pattern, .replacement {
+            flex: 1;
+            margin-right: 5px;
+        }
+        .replacement {
+            margin-right: 0;
+            margin-left: 5px;
+        }
+        .color-square {
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #3f51b5;
+            color: white;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #303f9f;
+        }
+        button:active {
+            background-color: #283593;
+        }
+        .buttons-row-container {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 10px;
+        }
+        .buttons-row-container > button {
+            margin-right: 10px;
+        }
+        #addRowButton {
+            margin-right: 20px;
+        }
+        #outputText {
+            font-size: 14px;
+            font-family: inherit;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="left">
+        <label for="inputText">Input Text</label>
+        <div class="buttons-row-container">
+            <button id="pasteButton" title="Paste Text"><i class="fas fa-paste"></i></button>
+            <button id="anonymizeButton" title="Anonymize Text"><i class="fas fa-user-secret"></i></button>
+        </div>
+        <textarea id="inputText" rows="10" cols="50" placeholder="Paste your text here..."></textarea>
+        <p class="instructions">Enter the patterns to replace and their corresponding replacements below. Add rows for more patterns. Click "Anonymize Text" to process the input.</p>
+        <div id="replacementContainer">
+            <div class="replacementRow">
+                <div class="color-square"></div>
+                <input type="text" class="pattern" placeholder="Pattern">
+                <input type="text" class="replacement" placeholder="Replace with">
+                <button class="removeRowButton" title="Remove Row"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>
+        <div class="buttons-row-container">
+            <button id="addRowButton" title="Add Row"><i class="fas fa-plus"></i></button>
+            <button id="clearButton" title="Clear All"><i class="fas fa-trash-alt"></i></button>
+        </div>
+        <div class="accordion" style="margin-top: 30px;">
+            <button class="accordion-button"><i class="fas fa-chevron-down"></i> Patterns</button>
+            <div class="accordion-content" style="display: none;">
+                <div class="load-patterns-container">
+                    <label for="patternsTextArea">Load Patterns</label>
+                    <textarea id="patternsTextArea" rows="10" cols="50" placeholder="Paste patterns JSON here..."></textarea>
+                    <div  class="buttons-row-container">
+                        <button id="loadPatternsButton" title="Load Patterns"><i class="fas fa-file-import"></i></button>
+                        <button id="serializePatternsButton" title="Serialize Patterns"><i class="fas fa-save"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="right">
+        <label for="outputText">Anonymized Text</label>
+        <div class="buttons-row-container">
+            <button id="selectAllOutputButton" title="Select All"><i class="fas fa-list-ul"></i></button>
+            <button id="copyOutputButton" title="Copy to Clipboard"><i class="fas fa-copy"></i></button>
+        </div>
+        <div id="outputText" contenteditable="false" style="border: 1px solid #ccc; border-radius: 5px; padding: 10px; min-height: 180px; resize: vertical; overflow-y: scroll;"></div>
+    </div>
+</div>
+
+<script>
+    const inputText = document.getElementById('inputText');
+    const outputText = document.getElementById('outputText');
+    const anonymizeButton = document.getElementById('anonymizeButton');
+    const addRowButton = document.getElementById('addRowButton');
+    const pasteButton = document.getElementById('pasteButton');
+    const replacementContainer = document.getElementById('replacementContainer');
+
+    anonymizeButton.addEventListener('click', anonymize);
+    addRowButton.addEventListener('click', addRow);
+    pasteButton.addEventListener('click', pasteText);
+
+    function addRow() {
+        const newRow = document.createElement('div');
+        newRow.classList.add('replacementRow');
+        newRow.innerHTML = `
+                <div class="color-square" style="background-color:${getRandomBackgroundColor()}"></div>
+                <input type="text" class="pattern" placeholder="Pattern">
+                <input type="text" class="replacement" placeholder="Replace with">
+                <button class="removeRowButton" title="Remove row"><i class="fas fa-trash-alt"></i></button>
+            `;
+        replacementContainer.appendChild(newRow);
+        newRow.querySelector('.removeRowButton').addEventListener('click', () => newRow.remove());
+    }
+
+    function encodeHTML(rawText) {
+        return rawText.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getContrastingTextColor(backgroundColor) {
+        function luminance(r, g, b) {
+            const a = [r, g, b].map((v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+            });
+
+            return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+        }
+
+        function contrast(lum1, lum2) {
+            const maxLum = Math.max(lum1, lum2);
+            const minLum = Math.min(lum1, lum2);
+            return (maxLum + 0.05) / (minLum + 0.05);
+        }
+
+        const color = backgroundColor.slice(1);
+        const r = parseInt(color.slice(0, 2), 16);
+        const g = parseInt(color.slice(2, 4), 16);
+        const b = parseInt(color.slice(4, 6), 16);
+
+        const bgLum = luminance(r, g, b);
+        const blackLum = 0;
+        const whiteLum = 1;
+
+        const blackContrast = contrast(bgLum, blackLum);
+        const whiteContrast = contrast(bgLum, whiteLum);
+
+        return blackContrast > whiteContrast ? "#000000" : "#ffffff";
+    }
+
+    function anonymize() {
+        let text = encodeHTML(inputText.value);
+        const patternInputs = document.querySelectorAll('.pattern');
+        const replacementInputs = document.querySelectorAll('.replacement');
+        const colorSquares = document.querySelectorAll('.color-square');
+
+        for (let i = 0; i < patternInputs.length; i++) {
+            const pattern = patternInputs[i].value;
+            const replacement = replacementInputs[i].value;
+            if (pattern) {
+                const backgroundColor = colorSquares[i].style.backgroundColor;
+                const textColor = getContrastingTextColor(backgroundColor);
+                const regex = new RegExp(pattern, 'g');
+                text = text.replace(regex, `<span style="background-color:${backgroundColor};color:${textColor};padding:0 3px;border-radius:3px">${replacement}</span>`);
+            }
+        }
+
+        outputText.innerHTML = text;
+        saveDataLocally();
+    }
+
+    function pasteText() {
+        navigator.clipboard.readText()
+            .then(text => inputText.value = text)
+            .catch(err => console.error('Failed to paste text: ', err));
+    }
+
+    function getRandomBackgroundColor() {
+        function luminance(r, g, b) {
+            const a = [r, g, b].map((v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+            });
+
+            return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+        }
+        function randomColorValue() {
+            return Math.floor(Math.random() * 256);
+        }
+
+        function contrast(lum1, lum2) {
+            const maxLum = Math.max(lum1, lum2);
+            const minLum = Math.min(lum1, lum2);
+            return (maxLum + 0.05) / (minLum + 0.05);
+        }
+
+        const whiteLum = 1;
+        const blackLum = 0;
+        const minContrast = 4.5; // Wartość minContrast można dostosować, aby uzyskać większy kontrast; wartość 4.5 jest zalecana dla tekstu
+
+        let r, g, b, bgLum, bgContrastWhite, bgContrastBlack;
+
+        do {
+            r = randomColorValue();
+            g = randomColorValue();
+            b = randomColorValue();
+            bgLum = luminance(r, g, b);
+            bgContrastWhite = contrast(bgLum, whiteLum);
+            bgContrastBlack = contrast(bgLum, blackLum);
+        } while (bgContrastWhite < minContrast && bgContrastBlack < minContrast);
+
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+
+    function saveDataLocally() {
+        localStorage.setItem('inputText', inputText.value);
+        localStorage.setItem('outputText', outputText.value);
+        const patterns = Array.from(document.querySelectorAll('.pattern')).map(input => input.value);
+        const replacements = Array.from(document.querySelectorAll('.replacement')).map(input => input.value);
+        localStorage.setItem('patterns', JSON.stringify(patterns));
+        localStorage.setItem('replacements', JSON.stringify(replacements));
+        const colors = Array.from(document.querySelectorAll('.color-square')).map(square => square.style.backgroundColor);
+        localStorage.setItem('colors', JSON.stringify(colors));
+    }
+
+    function loadDataFromLocalStorage() {
+        inputText.value = localStorage.getItem('inputText') || '';
+        outputText.value = localStorage.getItem('outputText') || '';
+
+        const patterns = JSON.parse(localStorage.getItem('patterns')) || [];
+        const replacements = JSON.parse(localStorage.getItem('replacements')) || [];
+        const colors = JSON.parse(localStorage.getItem('colors')) || [];
+
+        for (let i = 0; i < patterns.length; i++) {
+            if (i > 0) {
+                addRow();
+            }
+            document.querySelectorAll('.pattern')[i].value = patterns[i];
+            document.querySelectorAll('.replacement')[i].value = replacements[i];
+            document.querySelectorAll('.color-square')[i].style.backgroundColor = colors[i] || getRandomBackgroundColor();
+
+            const removeRowButton = document.querySelectorAll('.removeRowButton')[i];
+            removeRowButton.addEventListener('click', () => removeRowButton.closest('.replacementRow').remove());
+        }
+    }
+
+    // Serializes patterns data to JSON string
+    function serializePatterns() {
+        const patterns = Array.from(document.querySelectorAll('.pattern')).map(input => input.value);
+        const replacements = Array.from(document.querySelectorAll('.replacement')).map(input => input.value);
+        const colors = Array.from(document.querySelectorAll('.color-square')).map(square => square.style.backgroundColor);
+        const data = { patterns, replacements, colors };
+        return JSON.stringify(data, null, 2);
+    }
+
+    // Deserialize patterns data from JSON string
+    function deserializePatterns(jsonData) {
+        try {
+            const data = JSON.parse(jsonData);
+            const { patterns, replacements, colors } = data;
+            if (Array.isArray(patterns) && Array.isArray(replacements) && Array.isArray(colors)
+                && patterns.length === replacements.length && patterns.length === colors.length) {
+                clearPatterns();
+                for (let i = 0; i < patterns.length; i++) {
+                    addPattern(patterns[i], replacements[i], colors[i]);
+                }
+                saveDataLocally();
+            } else {
+                throw new Error('Invalid patterns data');
+            }
+        } catch (error) {
+            console.error('Error deserializing patterns:', error);
+            alert('Invalid patterns data');
+        }
+    }
+
+    // Clear all patterns
+    function clearPatterns() {
+        const patternContainers = document.querySelectorAll('.pattern-container');
+        patternContainers.forEach(container => container.remove());
+    }
+
+    // Event listener for Clear All button
+    clearButton.addEventListener('click', () => {
+        const confirmClear = confirm('Are you sure you want to clear all patterns?');
+        if (confirmClear) {
+            clearPatterns();
+            saveDataLocally();
+        }
+    });
+
+    // Toggle accordion
+    function toggleAccordion() {
+        this.classList.toggle('active');
+        const content = this.nextElementSibling;
+        content.style.display = content.style.display === 'block' ? 'none' : 'block';
+    }
+
+    // Add event listener to accordion buttons
+    const accordionButtons = document.querySelectorAll('.accordion-button');
+    accordionButtons.forEach(button => button.addEventListener('click', toggleAccordion));
+
+    // Event listener for Load Patterns button
+    loadPatternsButton.addEventListener('click', () => {
+        const patternsText = patternsTextArea.value;
+        try {
+            deserializePatterns(patternsText);
+            console.log('Patterns loaded');
+        } catch (error) {
+            console.error('Error loading patterns:', error);
+            alert('Invalid patterns data');
+        }
+    });
+
+    // Event listener for Serialize Patterns button
+    serializePatternsButton.addEventListener('click', () => {
+        const serializedPatterns = serializePatterns();
+        patternsTextArea.value = serializedPatterns;
+        patternsTextArea.select();
+        patternsTextArea.setSelectionRange(0, patternsTextArea.value.length);
+        document.execCommand('copy');
+        console.log('Patterns serialized and copied to clipboard');
+    });
+
+    // Event listener for Paste Text button
+    pasteButton.addEventListener('click', () => {
+        navigator.clipboard.readText()
+            .then(text => {
+                inputText.value = text;
+                console.log('Text pasted');
+            })
+            .catch(error => {
+                console.error('Error pasting text:', error);
+                alert('Error pasting text');
+            });
+    });
+
+    // Add a "Select All" button with FontAwesome icon
+    const selectAllButton = document.getElementById('selectAllOutputButton');
+    selectAllButton.addEventListener('click', () => {
+        const range = document.createRange();
+        range.selectNodeContents(outputText);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    });
+
+    // Add a "Copy to Clipboard" button next to the "Select All" button
+    const copyButton = document.getElementById('copyOutputButton');
+    copyButton.addEventListener('click', () => {
+        const selectedText = outputText.innerText;
+        navigator.clipboard.writeText(selectedText)
+            .then(() => {
+                console.log('Text copied to clipboard');
+                alert('Text copied to clipboard');
+            })
+            .catch(error => {
+                console.error('Error copying text to clipboard:', error);
+                alert('Error copying text to clipboard');
+            });
+    });
+
+    loadDataFromLocalStorage();
+</script>
+
+
