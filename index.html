@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Text Anonymizer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             box-sizing: border-box;
@@ -262,6 +262,7 @@
         const patternInputs = document.querySelectorAll('.pattern');
         const replacementInputs = document.querySelectorAll('.replacement');
         const colorSquares = document.querySelectorAll('.color-square');
+        const replacements = [];
 
         for (let i = 0; i < patternInputs.length; i++) {
             const pattern = patternInputs[i].value;
@@ -270,8 +271,14 @@
                 const backgroundColor = colorSquares[i].style.backgroundColor;
                 const textColor = getContrastingTextColor(backgroundColor);
                 const regex = new RegExp(pattern, 'g');
-                text = text.replace(regex, `<span style="background-color:${backgroundColor};color:${textColor};padding:0 3px;border-radius:3px">${replacement}</span>`);
+                const tempPlaceholder = `##%%%^%^_${i}##`;
+                replacements.push({ placeholder: tempPlaceholder, value: `<span style="background-color:${backgroundColor};color:${textColor};padding:0 3px;border-radius:3px">${replacement}</span>` });
+                text = text.replace(regex, tempPlaceholder);
             }
+        }
+
+        for (const replacement of replacements) {
+            text = text.replace(new RegExp(replacement.placeholder, 'g'), replacement.value);
         }
 
         outputText.innerHTML = text;
